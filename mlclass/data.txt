@@ -74,3 +74,10 @@
 12.4-SupportVectorMachines-KernelsI.mp4
 12.5-SupportVectorMachines-KernelsII.mp4
 12.6-SupportVectorMachines-UsingAnSVM.mp4
+17.1-RecommenderSystems-ProblemFormulation.mp4
+17.2-RecommenderSystems-ContentBasedRecommendations.mp4
+17.3-RecommenderSystems-CollaborativeFiltering-V1.mp4
+17.4-RecommenderSystems-CollaborativeFilteringAlgorithm.mp4
+17.5-RecommenderSystems-VectorizationLowRankMatrixFactorization.mp4
+17.6-RecommenderSystems-ImplementationalDetailMeanNormalization.mp4
+
