@@ -1,0 +1,286 @@
+<!DOCTYPE html>
+<html>
+<html lang="ko">
+<head>
+	<meta charset="utf-8" />
+	<meta http-equiv="X-UA-Compatible" content="IE=edge" />
+	<meta name="viewport" content="user-scalable=no, initial-scale=1.0, maximum-scale=1.0, minimum-scale=1.0, width=device-width" />
+	<meta name="apple-mobile-web-app-capable" content="yes" />
+	<meta name="format-detection" content="telephone=no" />
+	<title>Simple Pomodoro Timer</title>
+	<style type="text/css">
+
+	body, div { margin:0; padding:0; font-size:12px; font-family:monospace; }
+	#panel { text-align:center; padding:1em 2em; min-width:240px; position:relative; }
+	#panel h1 { font-size:12px; font-weight:normal; position:absolute; margin:0; left:2em; }
+	#panel h3 { font-size:800%; margin:50px 0; }
+	#panel .lbs { position:absolute; left:2em; bottom:1em; }
+	#panel .rbs { position:absolute; right:2em; bottom:1em; }
+	.lbs span, .rbs span { display:block; }
+	#panel .btn { font-size:160%; cursor:pointer;}
+	#panel .clear { clear:both; }
+
+	/* State style */
+	.init { background-color:black; color:white; }
+	.working { background-color:black; color:white; }
+	.done { background-color:yellow; color:black; }
+	.breaking { background-color:white; color:black; }
+	.back-to-work { background-color:green; color:black; }
+	.init h3 { cursor:pointer; }
+	.init .lb1, .init .lb2 { display:none; }
+	.working .lb1, .working .lb2 { display:none; }
+	.breaking .lb1, .breaking .lb2 { display:none; }
+	.back-to-work .lb1, .back-to-work .lb2 { display:none; }
+	.done .btn { font-size:140%; }
+
+	</style>
+</head>
+<body>
+
+<div id="panel" class="init">
+	<h1 class="title">Simple Pomodoro Timer</h1>
+
+	<h3>25:00</h3>
+
+	<div class="rbs">
+		<span class="btn rb">Reset</span>
+	</div>
+
+	<div class="lbs">
+		<span class="btn lb2">long break</span>
+		<span class="btn lb1">5 min break</span>
+	</div>
+
+	<div class="clear"></div>
+
+</div>
+
+<script type="text/javascript" src="http://s1.daumcdn.net/svc/original/U03/cssjs/jquery/jquery-1.8.1.min.js"></script>
+<script type="text/javascript">
+jQuery(document).ready(function ($) {
+
+	var config = {
+		WORK_TIME_MIN : 25,
+		SHORT_BREAK_TIME_MIN : 5,
+		LONG_BREAK_TIME_MIN : 20,
+	};
+	
+	var state_vars = {
+		current_state : 'init',
+		timeout_time_min : config.WORK_TIME_MIN,
+		start_time_ms : 0
+	};
+
+	function number_format(n) {
+		var s = '00' + n;
+		return s.substr(s.length - 2);
+	}
+
+	function ms_to_minsec(ms) {
+		var ts = parseInt(ms / 1000, 10),
+			min = parseInt(ts / 60, 10),
+			sec = ts - min * 60;
+
+		return number_format(min) + ':' + number_format(sec);
+	}
+
+	var transitions = {
+		
+		'init' : {
+			'start' : function() {
+				var next_state = 'working';
+
+				$('#panel').removeClass().addClass(next_state);
+				
+				state_vars.timeout_time_min = config.WORK_TIME_MIN;
+				state_vars.start_time_ms = +new Date();
+				window.setTimeout(transitions[next_state]['tick'], 30);
+
+				return next_state;
+			}
+		},
+
+		'working' : {
+			'reset' : function() {
+				init();
+				return 'init';
+			},
+			'tick' : function() {
+				return tick(state_vars.start_time_ms, state_vars.timeout_time_min);
+			},
+			'timeout' : function() {
+				var next_state = 'done';
+				
+				$('#panel').removeClass().addClass(next_state);
+				$('#panel h3').html('Done!');
+				$('#panel .rb').html('Back to timer');
+				$('#panel .lb1').html('5 min break');
+				$('#panel .lb2').html('Long break');
+
+				return next_state;
+			}
+		},
+		'done' : {
+			'back-to-timer' : function() {
+				init();
+				return 'init';
+			},
+
+			'five-min-break' : function() {
+				
+				var next_state = 'breaking';
+
+				$('#panel').removeClass().addClass(next_state);
+				$('#panel h3').html(ms_to_minsec(config.SHORT_BREAK_TIME_MIN * 60 * 1000));
+				$('#panel .rb').html('I\'m done');
+
+				state_vars.timeout_time_min = config.SHORT_BREAK_TIME_MIN;
+				state_vars.start_time_ms = +new Date();
+				window.setTimeout(transitions[next_state]['tick'], 30);
+
+				return next_state;
+			},
+
+			'long-break' : function() {
+
+				var next_state = 'breaking';
+
+				$('#panel').removeClass().addClass(next_state);
+				$('#panel h3').html(ms_to_minsec(config.LONG_BREAK_TIME_MIN * 60 * 1000));
+				$('#panel .rb').html('I\'m done');
+
+				state_vars.timeout_time_min = config.LONG_BREAK_TIME_MIN;
+				state_vars.start_time_ms = +new Date();
+				window.setTimeout(transitions[next_state]['tick'], 30);
+
+				return next_state;
+			}
+		},
+		'breaking' : {
+			'i-am-done' : function() {
+				var next_state = 'back-to-work';
+
+				$('#panel').removeClass().addClass(next_state);
+				$('#panel h3').html('Back to work!');
+				$('#panel .rb').html('Back to timer');
+
+				return next_state;
+			},
+			'timeout' : function() {
+				var next_state = 'back-to-work';
+
+				$('#panel').removeClass().addClass(next_state);
+				$('#panel h3').html('Back to work!');
+				$('#panel .rb').html('Back to timer');
+
+				return next_state;
+			},
+			'tick' : function() {
+				return tick(state_vars.start_time_ms, state_vars.timeout_time_min);
+			}
+		},
+		'back-to-work' : {
+			'back-to-timer' : function() {
+				init();
+				return 'init';
+			}
+		}
+	};
+
+
+	$('#panel h3').click(function() {
+		console.log('h3 click', state_vars.current_state);
+		var fn = transitions[state_vars.current_state]['start'];
+		if (!fn) {
+			console.log('invalid transition');
+			return;
+		}
+		state_vars.current_state = fn.call(null);
+	});
+
+	$('#panel .rb').click(function() {
+		console.log('.rb click', state_vars.current_state);
+		var p = { 'working'      : 'reset',
+				  'done'         : 'back-to-timer',
+				  'breaking'     : 'i-am-done',
+				  'back-to-work' : 'back-to-timer' },
+			act = p[state_vars.current_state],
+			fn = transitions[state_vars.current_state][act];
+
+		if (!fn) {
+			console.log('invalid transition');
+			return;
+		}
+		state_vars.current_state = fn.call(null);
+	});
+
+	$('#panel .lb1').click(function() {
+		console.log('.lb1 click', state_vars.current_state);
+		var fn = transitions[state_vars.current_state]['five-min-break'];
+		if (!fn) {
+			return;
+		}
+		state_vars.current_state = fn.call(null);
+	});
+
+	$('#panel .lb2').click(function() {
+		console.log('.lb2 click', state_vars.current_state);
+		var fn = transitions[state_vars.current_state]['long-break'];
+		if (!fn) {
+			return;
+		}
+		state_vars.current_state = fn.call(null);
+	});
+
+	var tick = function(start_time_ms, timeout_min) {
+
+		var timeout_ms = timeout_min * 60 * 1000,
+			progress_ms = +new Date() - start_time_ms,
+			diff_ms = timeout_ms - progress_ms,
+			state = state_vars.current_state;
+
+		if (diff_ms <= 0) {
+			// clear
+			var fn = transitions[state]['timeout'];
+			if (!fn) {
+				return;
+			}
+			state_vars.current_state = fn.call(null);
+		} else {
+			var fn = transitions[state]['tick'];
+			if (!fn) {
+				return;
+			}
+
+			$('#panel h3').html(ms_to_minsec(diff_ms));
+			window.setTimeout(fn, 1000);
+		}
+		return state_vars.current_state;
+	};
+
+	var init = function() {
+		$('#panel').removeClass().addClass('init');
+		$('#panel h3').html(ms_to_minsec(config.WORK_TIME_MIN * 60 * 1000));
+		$('#panel .rb').html('Reset');
+
+		state_vars = {
+			timeout_time_min : config.WORK_TIME_MIN,
+			start_time_ms : 0,
+			current_state : 'init'
+		};
+
+		return 'init';
+	};
+
+	init();
+
+	window.pomodoro = {
+		get_state : function() {
+			return state_vars;
+		}
+	}
+});
+</script>
+
+</body>
+</html>

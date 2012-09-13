@@ -1,0 +1,194 @@
+<!DOCTYPE html>
+<html>
+<html lang="ko">
+<head>
+	<meta charset="utf-8" />
+	<meta http-equiv="X-UA-Compatible" content="IE=edge" />
+	<meta name="viewport" content="user-scalable=no, initial-scale=1.0, maximum-scale=1.0, minimum-scale=1.0, width=device-width" />
+	<meta name="apple-mobile-web-app-capable" content="yes" />
+	<meta name="format-detection" content="telephone=no" />
+	<title>Simple Pomodoro Timer with javascript-state-machine</title>
+	<style type="text/css">
+
+	body, div { margin:0; padding:0; font-size:12px; font-family:monospace; }
+	#panel { text-align:center; padding:1em 2em; min-width:240px; position:relative; }
+	#panel h1 { font-size:12px; font-weight:normal; position:absolute; margin:0; left:2em; }
+	#panel h3 { font-size:800%; margin:50px 0; }
+	#panel .lbs { position:absolute; left:2em; bottom:1em; }
+	#panel .rbs { position:absolute; right:2em; bottom:1em; }
+	.lbs span, .rbs span { display:block; }
+	#panel .btn { font-size:160%; cursor:pointer;}
+	#panel .clear { clear:both; }
+
+	/* State style */
+	.init { background-color:black; color:white; }
+	.init h3 { cursor:pointer; }
+	.init .lb1,
+	.init .lb2 { display:none; }
+	
+	.working { background-color:black; color:white; }
+	.working .lb1,
+	.working .lb2 { display:none; }
+	
+	.working_done { background-color:yellow; color:black; }
+	.working_done .btn { font-size:140%; }
+	
+	.breaking { background-color:white; color:black; }
+	.breaking .lb1,
+	.breaking .lb2 { display:none; }
+
+	.breaking_done { background-color:green; color:black; }
+	.breaking_done .lb1,
+	.breaking_done .lb2 { display:none; }
+
+	</style>
+</head>
+<body>
+
+<div id="panel" class="init">
+	<h1 class="title">Simple Pomodoro Timer</h1>
+
+	<h3>25:00</h3>
+
+	<div class="rbs">
+		<span class="btn reset">Reset</span>
+	</div>
+
+	<div class="lbs">
+		<span class="btn lb2">long break</span>
+		<span class="btn lb1">5 min break</span>
+	</div>
+
+	<div class="clear"></div>
+
+</div>
+
+<script type="text/javascript" src="./jquery-1.8.1.min.js"></script>
+<script type="text/javascript" src="./state-machine.min.js"></script>
+<script type="text/javascript">
+jQuery(document).ready(function ($) {
+
+	var config = {
+		WORK_TIME_MIN : 25,
+		SHORT_BREAK_TIME_MIN : 5,
+		LONG_BREAK_TIME_MIN : 20,
+	};
+
+	var fsm = StateMachine.create({
+		initial: 'init',
+		events: [
+			// init
+			{ name: 'start'   , from: 'init'          , to: 'working'       },
+			// working
+			{ name: 'reset'   , from: 'working'       , to: 'init'          },
+			{ name: 'timeout' , from: 'working'       , to: 'working_done'  },
+			// working_done
+			{ name: 'reset'   , from: 'working_done'  , to: 'init'          },
+			{ name: 'start'   , from: 'working_done'  , to: 'breaking'      },
+			// breaking
+			{ name: 'reset'   , from: 'breaking'      , to: 'breaking_done' },
+			{ name: 'timeout' , from: 'breaking'      , to: 'breaking_done' },
+			// breaking_done
+			{ name: 'reset'   , from: 'breaking_done' , to: 'init'          }
+		],
+		callbacks: {
+
+			// state change callback
+			onchangestate: function(event, from, to) {
+				$('#panel').removeClass().addClass(to);
+			},
+
+			oninit: function(event, from, to) {
+				$('#panel h3').html(ms_to_minsec(config.WORK_TIME_MIN * 60 * 1000));
+				$('#panel .reset').html('Reset');
+			},
+
+			onworking_done: function(event, from, to) {
+				$('#panel h3').html('Done');
+				$('#panel .reset').html('Back to timer');
+			},
+
+			onbreaking: function(event, from, to) {
+				$('#panel .reset').html('I\'m done');
+			},
+
+			onbreaking_done: function(event, from, to) {
+				$('#panel h3').html('Back to work!');
+				$('#panel .reset').html('Back to timer');
+			},
+
+			// event callback
+			onstart: function(event, from, to, timeout_min) {
+				$('#panel h3').html(ms_to_minsec(timeout_min * 60 * 1000));
+				
+				var timeout_ms = timeout_min * 60 * 1000,
+					start_ms = +new Date();
+
+				(function tick() {
+
+					if (!(fsm.current === 'working' || fsm.current === 'breaking')) {
+						return;
+					}
+
+					var progress_ms = +new Date() - start_ms,
+						diff_ms = timeout_ms - progress_ms;
+
+					$('#panel h3').html(ms_to_minsec(diff_ms));
+
+					if (diff_ms <= 0) {
+						fsm.timeout();
+					} else {
+						window.setTimeout(tick, 100);
+					}
+
+				}());
+			}
+
+		}});
+
+	function number_format(n) {
+		var s = '00' + n;
+		return s.substr(s.length - 2);
+	}
+
+	function ms_to_minsec(ms) {
+		var ts = parseInt(ms / 1000, 10),
+			min = parseInt(ts / 60, 10),
+			sec = ts - min * 60;
+		sec = sec < 0 ? 0 : sec;
+		return number_format(min) + ':' + number_format(sec);
+	}
+
+	$('#panel h3').click(function() {
+		if (fsm.current === 'init') {
+			fsm.start(config.WORK_TIME_MIN);
+		}
+	});
+
+	$('#panel .reset').click(function() {
+		if (fsm.current === 'working' || fsm.current === 'working_done' ||
+			fsm.current === 'breaking' || fsm.current === 'breaking_done') {
+			fsm.reset();
+		}
+	});
+
+	$('#panel .lb1').click(function() {
+		if (fsm.current === 'working_done') {
+			fsm.start(config.SHORT_BREAK_TIME_MIN);	
+		}
+	});
+
+	$('#panel .lb2').click(function() {
+		if (fsm.current === 'working_done') {
+			fsm.start(config.LONG_BREAK_TIME_MIN);
+		}
+	});
+
+	// for debug
+	window.fsm = fsm;
+
+});
+</script>
+
+</body>
+</html>
